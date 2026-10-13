@@ -1,0 +1,59 @@
+# AquaFlex AI — Docker Compose stack
+# Launches the FastAPI backend which serves the REST API powering the
+# Leaflet GIS dashboard.
+#
+#   docker compose up --build
+#
+# Backend API: http://localhost:8000  (docs at /docs)
+# Dashboard:    serve ./frontend statically, or open frontend/index.html
+#               via any static server pointing at the API base URL.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aquaflex-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Offline-safe deterministic data by default.
+      USE_MOCK_SATELLITE: "true"
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      YOLO_MODEL: "yolov8n.pt"
+      DETECTION_CONFIDENCE_THRESHOLD: "0.25"
+      WIND_LEEWAY_FACTOR: "0.03"
+      FORECAST_HORIZON_HOURS: "72"
+      LOG_LEVEL: "INFO"
+      # Allow the dashboard to talk to the API cross-origin.
+      CORS_ORIGINS: "http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://127.0.0.1:5500"
+    env_file:
+      - .env
+    volumes:
+      # Persist downloaded model weights between runs.
+      - aquaflex-models:/root/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # Optional: lightweight static server for the GIS dashboard.
+  frontend:
+    image: python:3.11-slim
+    container_name: aquaflex-frontend
+    working_dir: /site
+    command: python -m http.server 5500 --bind 0.0.0.0
+    ports:
+      - "5500:5500"
+    volumes:
+      - ./frontend:/site:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  aquaflex-models:
