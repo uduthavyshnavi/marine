@@ -147,6 +147,81 @@ Then open **http://127.0.0.1:5500** (or the Live Server URL). The dashboard fetc
 
 > The dashboard auto-detects the API base URL. When opened via `file://`, it defaults to `http://127.0.0.1:8000`. You can override it by setting `window.AQUAFLEX_API_BASE` before the script loads.
 
+> **Note:** The backend also serves the dashboard itself — open **http://127.0.0.1:8000** and you get the same page plus the API from a single origin (no CORS/caching issues).
+
+### 5.6 U-Net segmentation model
+
+AquaFlex AI includes a **trained PyTorch U-Net** for pixel-level marine-debris
+segmentation (`backend/services/unet_service.py`), trained on the **MARIDA**
+dataset with **11 Sentinel-2 spectral bands**, **256×256** patches, and
+**BCE + Dice** loss. Artifacts:
+
+| File | Purpose |
+|------|---------|
+| `models/aquaflex_unet_final.pth` | Trained U-Net weights (state_dict) |
+| `models/aquaflex_model_config.json` | Band order, per-band normalization mean/std, input size (256), input channels (11), threshold (0.6) |
+
+The architecture (`DoubleConv` blocks; encoder 11→32→64→128; bottleneck
+128→256; decoder transposed-conv 256→128→64→32 with skip connections; 1×1
+output conv) **exactly matches the checkpoint** and is loaded with
+`load_state_dict(strict=True)`, so a mismatch fails loudly instead of silently.
+
+**Requirements to run it:** `torch` and `Pillow` (added to `requirements.txt`),
+plus `rasterio` to read GeoTIFF inputs. These are imported lazily inside the
+endpoint, so the rest of the backend still starts if they are absent.
+
+#### `POST /api/v1/detect/unet`
+
+Accepts a **multipart** upload of an **11-band, 256×256 multispectral GeoTIFF**
+(`.tif`/`.tiff`) and returns a JSON `UNetDetectResponse`:
+
+- `model_name`, `framework`, `threshold` (from config, 0.6)
+- `input_channels` (11) and `band_order`
+- `width`, `height`, `total_pixels`, `debris_pixels`, `debris_percent`
+- `mask_png_base64` — the binary segmentation mask as a base64 grayscale PNG
+  (0 = background, 255 = debris), ready to drop into an `<img>` tag.
+
+**Input validation & errors:** non-GeoTIFF extensions → `400`; RGB (3-band) or
+wrong band count → `400`; non-256×256 patch → `400`; uploads larger than
+256 MB → `413`; U-Net/model unavailable (missing deps/artifacts) → `503`.
+Uploaded files are streamed to a temp file, size-checked, and deleted in a
+`finally` block.
+
+**Example (curl / PowerShell):**
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/detect/unet \
+  -F "file=@patch_11band_256x256.tif"
+```
+
+> ⚠️ **Important — do not feed RGB to the U-Net.** The RGB Sentinel-2 simulation
+> PNG produced by the ingestion service is a **3-band** composite and is
+> incompatible with this 11-band model. RGB rejection is intentional and tested.
+> The U-Net requires genuine 11-band multispectral data.
+
+#### Known limitation — live satellite integration
+
+The ingestion service (`ingestion_service.py`) currently returns **synthetic /
+mock** Sentinel-2 RGB tiles and mock current/wind fields (offline-safe demo
+data). It does **not** yet fetch real 11-band Sentinel-2 products from
+Copernicus, nor live INCOIS currents. The live-fetch code paths are scaffolds
+that require credentials / a concrete STAC download implementation. Therefore
+the U-Net endpoint expects a **user-supplied 11-band GeoTIFF**; end-to-end
+automated satellite→U-Net ingestion is **not yet implemented or tested**.
+
+#### Running the smoke test
+
+```bash
+# From the project root:
+py backend\tests\run_smoke.py        # Windows
+python backend/tests/run_smoke.py    # cross-platform
+pytest backend/tests/run_smoke.py    # if pytest is installed
+```
+
+The test builds a synthetic 11-band GeoTIFF in a temp dir (test fixture only)
+and checks: the app starts, `/openapi.json` lists the route, the checkpoint
+loads, a valid 11-band tile yields a mask, RGB is rejected, and the existing
+YOLO `/detect` and `/simulation` endpoints still work.
+
 ---
 
 ---

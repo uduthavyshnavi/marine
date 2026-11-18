@@ -12,6 +12,14 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+
+import os
+import tempfile
+
+from fastapi import File, HTTPException, UploadFile
+
+from backend.services.unet_service import UNetDetectionService
+
 from typing import List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -66,6 +74,12 @@ async def add_no_cache_headers(request: Request, call_next):
 # CORS or stale-cache issues.
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if FRONTEND_DIR.is_dir():
+    if (FRONTEND_DIR / "css").is_dir():
+        app.mount("/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="css")
+    if (FRONTEND_DIR / "js").is_dir():
+        app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="js")
+    if (FRONTEND_DIR / "vendor").is_dir():
+        app.mount("/vendor", StaticFiles(directory=str(FRONTEND_DIR / "vendor")), name="vendor")
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 _detection_service: Optional[DetectionService] = None
@@ -277,5 +291,57 @@ def root():
         "docs": "/docs",
         "case_study": "MSC ELSA 3 Incident",
     }
+
+_unet_service = None
+
+
+@app.post("/api/v1/detect/unet")
+async def detect_with_unet(file: UploadFile = File(...)):
+    global _unet_service
+
+    if not file.filename or not file.filename.lower().endswith((".tif", ".tiff")):
+        raise HTTPException(
+            status_code=400,
+            detail="Upload a Sentinel-2 11-band GeoTIFF file."
+        )
+
+    temp_path = None
+
+    try:
+        if _unet_service is None:
+            _unet_service = UNetDetectionService()
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".tif", delete=False
+        ) as temp_file:
+            temp_file.write(await file.read())
+            temp_path = temp_file.name
+
+        result = _unet_service.predict_geotiff(temp_path)
+
+        # The NumPy raster profile is not JSON serializable.
+        result.pop("raster_profile", None)
+
+        return {
+            "model": "AquaFlex AI BCE-Dice U-Net",
+            "status": "success",
+            **result
+        }
+
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"U-Net inference failed: {str(exc)}"
+        )
+
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 

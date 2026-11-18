@@ -1,9 +1,26 @@
 fastapi==0.110.0
 uvicorn==0.28.0
 pydantic==2.6.4
-numpy==1.26.4
+numpy>=2.0
 requests==2.31.0
 ultralytics==8.1.42
-rasterio==1.3.9
-shapely==2.0.3
+rasterio>=1.4.0
+shapely>=2.1.0
 python-dotenv==1.0.1
+
+# U-Net marine-debris segmentation (backend/services/unet_service.py).
+# torch provides the model + inference runtime; Pillow encodes the mask PNG.
+torch>=2.0.0
+Pillow>=9.0.0
+
+# Live geospatial analysis (backend/services/geo_service.py).
+# pyproj for CRS reprojection, geopy for geodesic distance. Both are used when
+# present; rasterio.warp + a native WGS84 geodesic are automatic fallbacks.
+pyproj>=3.5
+geopy>=2.3
+
+# Live alerting dispatch (backend/services/alert_service.py). Optional; the
+# dispatcher degrades gracefully when Twilio credentials are not configured.
+twilio>=8.0
+
+

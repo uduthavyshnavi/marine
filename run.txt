@@ -1,0 +1,6 @@
+backend
+cd d:\marine\aquaflex-ai 
+.venv\Scripts\Activate.ps1
+uvicorn backend.main:app --reload --port 8000 
+frontend
+python -m http.server 5500 --directory frontend

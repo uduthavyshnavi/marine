@@ -1,8 +1,7 @@
 .env
-.env.*
-!.env.example
-__pycache__/
-*.py[cod]
 .venv/
 venv/
-node_modules/
+__pycache__/
+*.py[cod]
+*.log
+py_empty_backup

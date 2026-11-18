@@ -3,121 +3,504 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AquaFlex AI — Marine Plastic Debris Command Center</title>
+  <title>AquaFlex AI — Marine Debris Command Center</title>
+  <meta name="description" content="Real-time AI-powered marine plastic debris detection, 72-hour Lagrangian drift forecasting, and coastal risk triage platform for the Indian Ocean." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
-    rel="stylesheet"
-  />
-
-  <link rel="stylesheet" href="/static/vendor/leaflet.css" />
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
-          },
-          colors: {
-            abyss: '#05070d',
-            panel: '#0b1120',
-            panel2: '#0f172a',
-            neon: '#39ff14',
-            danger: '#ff2d55',
-            warn: '#ffb020',
-            cyber: '#22d3ee',
-          },
-        },
-      },
-    };
-  </script>
-
-  <link rel="stylesheet" href="/static/css/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="vendor/leaflet.css" />
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
 
-<body class="bg-abyss text-slate-200 font-sans antialiased overflow-hidden">
-  <div class="flex h-screen w-screen">
-    <div class="relative flex-1 h-full">
-      <div id="map" class="absolute inset-0 z-0"></div>
+<body>
+  <!-- ══════════════════ MAIN LAYOUT ══════════════════ -->
+  <div class="shell">
 
-      <div class="absolute top-4 left-4 z-[1000] pointer-events-none">
-        <div class="bg-panel/80 backdrop-blur-md border border-cyan-500/30 rounded-lg px-4 py-3 shadow-2xl shadow-cyan-500/10">
-          <div class="flex items-center gap-3">
-            <div class="w-3 h-3 rounded-full bg-neon animate-pulse shadow-[0_0_12px_#39ff14]"></div>
-            <div>
-              <h1 class="text-lg font-extrabold tracking-tight text-white leading-none">
-                AquaFlex <span class="text-cyber">AI</span>
-              </h1>
-              <p class="text-[11px] font-mono text-slate-400 mt-1">
-                MSC ELSA 3 · Marine Plastic Debris Command Center
-              </p>
+    <!-- ── Top Header Bar ───────────────────────────────────────────────── -->
+    <header class="topbar" id="topbar">
+      <div class="topbar-left">
+        <div class="pulse-dot" id="live-dot"></div>
+        <h1 class="brand">AquaFlex <span class="brand-ai">AI</span></h1>
+        <span class="brand-sub">Marine Debris Command Center</span>
+      </div>
+      <div class="topbar-center">
+        <div class="stat-chip" id="chip-status">
+          <span class="chip-label">SYSTEM</span>
+          <span class="chip-value" id="sys-status">INITIALISING</span>
+        </div>
+        <div class="stat-chip" id="chip-detections">
+          <span class="chip-label">DETECTIONS</span>
+          <span class="chip-value" id="stat-detections">—</span>
+        </div>
+        <div class="stat-chip" id="chip-confidence">
+          <span class="chip-label">MEAN CONF</span>
+          <span class="chip-value" id="stat-confidence">—</span>
+        </div>
+        <div class="stat-chip" id="chip-threat">
+          <span class="chip-label">THREAT</span>
+          <span class="chip-value threat-value" id="chip-threat-val">—</span>
+        </div>
+        <div class="stat-chip">
+          <span class="chip-label">COUNTDOWN</span>
+          <span class="chip-value font-mono" id="countdown">--:--:--</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-badge" id="alert-badge">STANDBY</span>
+        <span class="topbar-target">Target: <span id="countdown-target">Kanyakumari</span></span>
+      </div>
+    </header>
+
+    <!-- ── Body: Map + Side Panels ──────────────────────────────────────── -->
+    <div class="body-row">
+
+      <!-- MAP -->
+      <div class="map-wrap">
+        <div id="map"></div>
+
+
+
+        <!-- Digital 72-Hour Forecast Timer Overlay HUD -->
+        <div class="map-timer-hud" id="map-timer-hud">
+          <div class="timer-hud-top">
+            <span class="hud-live-dot"></span>
+            <span class="hud-title">72-HR LAGRANGIAN DRIFT CLOCK</span>
+          </div>
+          <div class="timer-hud-digits font-mono" id="timer-hud-digits">00:00:00</div>
+          <div class="timer-hud-sub">
+            <span id="timer-hud-hour">T+00h</span> · <span id="timer-hud-status">ORIGIN RELEASE</span>
+          </div>
+        </div>
+
+        <!-- Map Legend with Dynamic Hotspot Engine Categories -->
+        <div class="map-legend">
+          <span class="leg-item"><span class="leg-dot danger"></span>Critical (≥0.7) / Windrow</span>
+          <span class="leg-item"><span class="leg-dot moderate"></span>Moderate (0.3–0.7) / Med Field</span>
+          <span class="leg-item"><span class="leg-dot safe"></span>Safe (&lt;0.3) / Dispersed</span>
+          <span class="leg-item"><span class="leg-dash neon"></span>72h Drift Trajectory</span>
+          <span class="leg-item"><span class="leg-dot cyber"></span>Sinking Site</span>
+          <span class="leg-item"><span class="leg-dot purple-target"></span>🎯 Origin Discharge Point</span>
+          <span class="leg-item"><span class="leg-dash purple"></span>Reverse Backtrack</span>
+        </div>
+
+        <!-- ── Interactive 0–72 Hour Forecast Range Slider ──────────────── -->
+        <div class="forecast-slider-container" id="forecast-slider-container">
+          <div class="slider-header-row">
+            <div class="slider-title-col">
+              <span class="slider-pulse-icon"></span>
+              <span class="slider-label">LAGRANGIAN DRIFT TIMELINE</span>
+              <span class="slider-hour-badge" id="slider-hour-val">T+0h (Release Centroid)</span>
+            </div>
+            <div class="slider-metrics-col">
+              <span class="slider-metric-item">Coords: <strong id="slider-coords" class="font-mono">—</strong></span>
+              <span class="slider-metric-item">Drift Distance: <strong id="slider-dist">0.0 km</strong></span>
+              <span class="slider-metric-item">Landfall Countdown: <strong id="slider-countdown" class="font-mono">--:--:--</strong></span>
+            </div>
+          </div>
+          <div class="slider-controls-row">
+            <button class="slider-play-btn" id="slider-play-btn" type="button" title="Play or Pause Drift Simulation">
+              <span id="slider-play-icon">▶ Play Animation</span>
+            </button>
+            <div class="slider-track-wrap">
+              <input type="range" min="0" max="72" step="6" value="0" class="forecast-range-slider" id="forecast-range-slider" />
+              <div class="slider-ticks">
+                <span>0h</span><span>12h</span><span>24h</span><span>36h</span><span>48h</span><span>60h</span><span>72h</span>
+              </div>
+            </div>
+            <div class="slider-step-buttons">
+              <button type="button" class="step-btn" data-hour="0">0h</button>
+              <button type="button" class="step-btn" data-hour="6">+6h</button>
+              <button type="button" class="step-btn" data-hour="12">+12h</button>
+              <button type="button" class="step-btn" data-hour="24">+24h</button>
+              <button type="button" class="step-btn" data-hour="48">+48h</button>
+              <button type="button" class="step-btn" data-hour="72">+72h</button>
             </div>
           </div>
         </div>
+
+        <!-- Processing overlay -->
+        <div class="processing-overlay hidden" id="processing-overlay">
+          <div class="spinner"></div>
+          <p class="processing-text">Running U-Net inference…</p>
+        </div>
       </div>
 
-      <div class="absolute bottom-4 left-4 z-[1000] flex flex-wrap gap-2 text-[11px] font-mono">
-        <span class="legend-item"><span class="dot bg-danger"></span>AI Hotspots</span>
-        <span class="legend-item"><span class="dash-neon"></span>72h Drift Trajectory</span>
-        <span class="legend-item"><span class="dot bg-warn"></span>High-Risk Zone</span>
-        <span class="legend-item"><span class="dot bg-cyber"></span>Sinking Site</span>
-      </div>
-    </div>
+      <!-- RIGHT PANEL STACK -->
+      <aside class="side-panel" id="side-panel">
 
-    <aside class="w-[380px] shrink-0 h-full bg-panel border-l border-cyan-500/20 overflow-y-auto custom-scroll">
-      <div class="p-5 space-y-5">
-        <section class="rounded-xl border border-danger/40 bg-gradient-to-br from-danger/15 to-transparent p-4">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-xs font-bold uppercase tracking-widest text-danger">
-              Forecast Impact Alert
-            </h2>
-            <span id="alert-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-danger/20 text-danger border border-danger/40">STANDBY</span>
+        <!-- ══════ Q1: Live Satellite Mask & Quality Gate ══════ -->
+        <section class="panel-card" id="q1-panel">
+          <div class="panel-head">
+            <h2 class="panel-title q1">⬡ Q1 · Satellite Mask &amp; Quality Gate</h2>
+            <span class="panel-badge" id="q1-gate-badge">IDLE</span>
           </div>
-          <p class="text-[11px] text-slate-400 mb-3">
-            Estimated time until debris reaches the nearest priority coast.
-          </p>
-          <div id="countdown" class="font-mono text-4xl font-bold text-white tracking-tight tabular-nums">
-            --:--:--
+
+          <!-- Upload control -->
+          <div class="upload-zone" id="upload-zone">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path></svg>
+            <span>Drop 11-band Sentinel-2 GeoTIFF here</span>
+            <input id="unet-file" type="file" accept=".tif,.tiff" />
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">
-            Target: <span id="countdown-target" class="text-cyber">Kanyakumari</span>
-          </p>
+          <button class="run-btn" id="unet-run">
+            <span class="run-icon">▶</span> Run Live Segmentation
+          </button>
+          <p class="status-line" id="unet-status">Idle — awaiting GeoTIFF upload.</p>
+
+          <!-- Mask + quality metrics (hidden until result) -->
+          <div class="q1-results hidden" id="q1-results">
+            <div class="mask-frame">
+              <img id="unet-mask" alt="Debris mask preview" />
+              <div class="mask-label">U-Net Binary Mask (0/255)</div>
+            </div>
+            <div class="metric-row">
+              <span class="metric-key">Quality Gate</span>
+              <span class="metric-val gate-val" id="unet-quality">—</span>
+            </div>
+            <!-- Saturation meters -->
+            <div class="meter-group" id="meter-group">
+              <div class="meter-row">
+                <span class="meter-label">Glint fraction</span>
+                <div class="meter-bar-wrap"><div class="meter-bar" id="meter-glint"></div></div>
+                <span class="meter-pct" id="meter-glint-pct">—</span>
+              </div>
+              <div class="meter-row">
+                <span class="meter-label">Sat. pixels</span>
+                <div class="meter-bar-wrap"><div class="meter-bar warn" id="meter-sat"></div></div>
+                <span class="meter-pct" id="meter-sat-pct">—</span>
+              </div>
+            </div>
+          </div>
         </section>
 
-        <section class="rounded-xl border border-cyan-500/20 bg-panel2 p-4">
-          <h2 class="text-xs font-bold uppercase tracking-widest text-cyan-300 mb-3">Case Telemetry</h2>
-          <dl class="space-y-2 text-sm">
-            <div class="flex justify-between"><dt class="text-slate-400">Vessel</dt><dd class="font-mono text-slate-200">MSC ELSA 3</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Incident</dt><dd class="font-mono text-slate-200">25 May 2025</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Location</dt><dd class="font-mono text-slate-200">~13 NM off Kerala</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Detections</dt><dd id="stat-detections" class="font-mono text-neon">—</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Mean Confidence</dt><dd id="stat-confidence" class="font-mono text-neon">—</dd></div>
-          </dl>
+        <!-- ══════ Q2: Detection & Spatial Metrics ══════ -->
+        <section class="panel-card" id="q2-panel">
+          <div class="panel-head">
+            <h2 class="panel-title q2">◈ Q2 · Detection &amp; Spatial Metrics</h2>
+            <span class="panel-badge q2" id="q2-scale-badge">—</span>
+          </div>
+          <div class="metric-grid" id="q2-grid">
+            <div class="mg-item"><span class="mg-key">Area (m²)</span><span class="mg-val" id="q2-area-m2">—</span></div>
+            <div class="mg-item"><span class="mg-key">Area (km²)</span><span class="mg-val" id="debrisAreaText">—</span></div>
+            <div class="mg-item"><span class="mg-key">Radius</span><span class="mg-val" id="hotspotRadiusText">—</span></div>
+            <div class="mg-item"><span class="mg-key">Intensity</span><span class="mg-val" id="intensityText">—</span></div>
+            <div class="mg-item"><span class="mg-key">Debris px</span><span class="mg-val" id="q2-pixels">—</span></div>
+            <div class="mg-item"><span class="mg-key">Coverage</span><span class="mg-val" id="q2-coverage">—</span></div>
+            <div class="mg-item"><span class="mg-key">Res X</span><span class="mg-val" id="q2-res-x">—</span></div>
+            <div class="mg-item"><span class="mg-key">Res Y</span><span class="mg-val" id="q2-res-y">—</span></div>
+            <div class="mg-item"><span class="mg-key">px area</span><span class="mg-val" id="q2-px-area">—</span></div>
+            <div class="mg-item"><span class="mg-key">Centroid</span><span class="mg-val" id="q2-centroid">—</span></div>
+          </div>
+          <span id="q2-area-km2" style="display:none"></span>
+          <div class="cluster-badge-wrap">
+            <span class="cluster-badge" id="q2-cluster">AWAITING DETECTION</span>
+          </div>
         </section>
 
-        <section class="rounded-xl border border-cyan-500/20 bg-panel2 p-4">
-          <h2 class="text-xs font-bold uppercase tracking-widest text-cyan-300 mb-3">Priority Action Zones</h2>
-          <ul id="risk-zones" class="space-y-2 text-sm">
-            <li class="text-slate-500 text-xs font-mono">Awaiting simulation…</li>
+        <!-- ══════ Q3: 72-Hour Drift & Source Attribution ══════ -->
+        <section class="panel-card" id="q3-panel">
+          <div class="panel-head">
+            <h2 class="panel-title q3">⟳ Q3 · Drift &amp; Source Attribution</h2>
+            <span class="panel-badge q3" id="q3-source-badge">—</span>
+          </div>
+
+          <!-- Source attribution -->
+          <div class="attribution-box" id="q3-attribution">
+            <div class="attr-header-row">
+              <span class="attr-type" id="q3-source-type">—</span>
+              <span class="attr-conf font-mono" id="q3-source-conf">—</span>
+            </div>
+            <div class="attr-metrics-sub" id="q3-source-metrics">
+              <div class="attr-sub-row"><span class="attr-sub-lbl">Origin:</span> <strong id="q3-origin-coords" class="font-mono">—</strong></div>
+              <div class="attr-sub-row"><span class="attr-sub-lbl">Entity:</span> <strong id="q3-nearest-source">—</strong></div>
+              <div class="attr-sub-row"><span class="attr-sub-lbl">Est. Release:</span> <strong id="q3-est-release" class="font-mono">—</strong></div>
+            </div>
+            <p class="attr-desc" id="q3-source-desc">Awaiting detection…</p>
+          </div>
+
+          <!-- Trajectory nodes -->
+          <div class="traj-header">72h Drift Positions</div>
+          <ul class="traj-list" id="q3-traj-list">
+            <li class="traj-placeholder">Awaiting drift forecast…</li>
+          </ul>
+
+          <!-- Risk zones (simulation) -->
+          <div class="traj-header" style="margin-top:10px">Priority Risk Zones</div>
+          <ul class="risk-list" id="risk-zones">
+            <li class="traj-placeholder">Awaiting simulation…</li>
           </ul>
         </section>
 
-        <section class="rounded-xl border border-cyan-500/20 bg-panel2 p-4">
-          <h2 class="text-xs font-bold uppercase tracking-widest text-cyan-300 mb-3">72h Trajectory Nodes</h2>
-          <ul id="trajectory-nodes" class="space-y-2 text-sm font-mono">
-            <li class="text-slate-500 text-xs">Awaiting simulation…</li>
-          </ul>
-        </section>
-      </div>
-    </aside>
-  </div>
+        <!-- ══════ Q4: Risk Triage & Municipal Alerts ══════ -->
+        <section class="panel-card" id="q4-panel">
+          <div class="panel-head">
+            <h2 class="panel-title q4">⚠ Q4 · Risk Triage &amp; Municipal Alerts</h2>
+            <span class="panel-badge q4" id="q4-threat-badge">—</span>
+          </div>
 
-  <script src="/static/vendor/leaflet.js"></script>
-  <script src="/static/js/dashboard.js"></script>
+          <div class="triage-score-display">
+            <div class="score-ring" id="score-ring">
+              <svg viewBox="0 0 100 100" width="96" height="96">
+                <circle cx="50" cy="50" r="42" stroke="#1e3a5a" stroke-width="10" fill="none"/>
+                <circle cx="50" cy="50" r="42" stroke="#22d3ee" stroke-width="10" fill="none"
+                  stroke-dasharray="263.89" stroke-dashoffset="263.89"
+                  stroke-linecap="round" transform="rotate(-90 50 50)"
+                  id="score-arc"/>
+              </svg>
+              <div class="score-inner">
+                <span class="score-num" id="score-num">—</span>
+                <span class="score-lbl">Priority</span>
+              </div>
+            </div>
+            <div class="score-breakdown">
+              <div class="sb-row"><span class="sb-key">Threat Level</span><span class="sb-val threat-val" id="threatLevelText">—</span></div>
+              <div class="sb-row"><span class="sb-key">Priority Score</span><span class="sb-val" id="priorityScoreText">—</span></div>
+              <span id="q4-threat-level" style="display:none"></span>
+              <div class="sb-row"><span class="sb-key">Landfall P</span><span class="sb-val" id="q4-landfall">—</span></div>
+              <div class="sb-row"><span class="sb-key">Habitat Zone</span><span class="sb-val small" id="q4-habitat">—</span></div>
+              <div class="sb-row"><span class="sb-key">Community</span><span class="sb-val small" id="q4-community">—</span></div>
+            </div>
+          </div>
+
+          <!-- Dispatch status -->
+          <div class="dispatch-box" id="dispatch-box">
+            <div class="dispatch-header">Alert Dispatch</div>
+            <div class="dispatch-row"><span class="dsp-key">Status</span><span class="dsp-val" id="q4-alert-status">—</span></div>
+            <div class="dispatch-row"><span class="dsp-key">Channels</span><span class="dsp-val" id="q4-channels">—</span></div>
+            <div class="dispatch-row"><span class="dsp-key">Municipal</span><span class="dsp-val" id="q4-municipal">—</span></div>
+            <div class="dispatch-row"><span class="dsp-key">Incident ID</span><span class="dsp-val font-mono small" id="q4-incident-id">—</span></div>
+          </div>
+
+          <div class="alert-msg-box" id="alert-msg-box">
+            <p id="q4-alert-msg">—</p>
+          </div>
+
+          <!-- Emergency Dispatch and PDF Incident Report Controls -->
+          <div class="panel-action-buttons">
+            <button id="send-advisory-btn" class="action-btn emergency-btn" type="button" title="Broadcast Bilingual Maritime Advisory via Twilio SMS/WhatsApp">
+              ⚡ Send Emergency Advisory
+            </button>
+            <a id="download-pdf-btn" href="/api/v1/reports/pdf/latest" target="_blank" class="action-btn pdf-btn" title="Download Official Incident Digest PDF">
+              📄 Download PDF Report
+            </a>
+          </div>
+
+          <!-- GeoTIFF download -->
+          <a id="unet-geotiff" href="#" target="_blank" class="dl-btn hidden">
+            ⬇ Download Mask GeoTIFF
+          </a>
+        </section>
+
+        <!-- ══════ Q5: Sub-Pixel Spectral Material Classifier ══════ -->
+        <section class="panel-card" id="q5-panel">
+          <div class="panel-head">
+            <h2 class="panel-title q5">◈ Q5 · Spectral Material Classifier</h2>
+            <span class="panel-badge q5" id="mat-dominant-badge">—</span>
+          </div>
+
+          <div class="spectral-indices-row">
+            <div class="si-item">
+              <span class="si-key">Floating Debris Index (FDI)</span>
+              <span class="si-val font-mono" id="mat-fdi-value">—</span>
+            </div>
+            <div class="si-item">
+              <span class="si-key">Plastic Surface Index (PSI)</span>
+              <span class="si-val font-mono" id="mat-psi-value">—</span>
+            </div>
+          </div>
+
+          <!-- Material composition breakdown bars -->
+          <div class="comp-breakdown-wrap">
+            <div class="comp-row">
+              <div class="comp-label-row">
+                <span class="comp-name">Ghost Nets &amp; Fishing Gear</span>
+                <span class="comp-pct" id="mat-ghost-nets-pct">—%</span>
+              </div>
+              <div class="comp-bar-track">
+                <div class="comp-bar nets" id="mat-ghost-nets-bar" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <div class="comp-row">
+              <div class="comp-label-row">
+                <span class="comp-name">Macro Plastics &amp; Bottles</span>
+                <span class="comp-pct" id="mat-macro-plastics-pct">—%</span>
+              </div>
+              <div class="comp-bar-track">
+                <div class="comp-bar plastics" id="mat-macro-plastics-bar" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <div class="comp-row">
+              <div class="comp-label-row">
+                <span class="comp-name">Marine Biomass &amp; Sargassum</span>
+                <span class="comp-pct" id="mat-biomass-pct">—%</span>
+              </div>
+              <div class="comp-bar-track">
+                <div class="comp-bar biomass" id="mat-biomass-bar" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hazard classification callout -->
+          <div class="hazard-callout-box" id="hazard-box">
+            <div class="hazard-title">
+              <span class="hazard-icon">⚠️</span>
+              <span class="hazard-heading">Hazard Assessment</span>
+            </div>
+            <p class="hazard-text" id="mat-hazard-warning">Awaiting spectral unmixing analysis…</p>
+          </div>
+        </section>
+
+        <!-- ══════ Q6: Autonomous Cleanup Fleet Logistics & Intercept ══════ -->
+        <section class="panel-card" id="q6-panel">
+          <div class="panel-head">
+            <h2 class="panel-title q6">⚓ Q6 · Fleet Intercept &amp; Logistics</h2>
+            <span class="panel-badge q6" id="logistics-port-badge">—</span>
+          </div>
+
+          <div class="logistics-grid">
+            <div class="lg-item">
+              <span class="lg-key">Nearest Base Port</span>
+              <span class="lg-val" id="logistics-port-name">—</span>
+            </div>
+            <div class="lg-item">
+              <span class="lg-key">Transit Distance</span>
+              <span class="lg-val font-mono" id="logistics-dist-nm">—</span>
+            </div>
+            <div class="lg-item">
+              <span class="lg-key">Intercept Waypoint</span>
+              <span class="lg-val font-mono" id="logistics-intercept-point">—</span>
+            </div>
+            <div class="lg-item">
+              <span class="lg-key">Transit ETA</span>
+              <span class="lg-val font-mono" id="logistics-eta-hours">—</span>
+            </div>
+            <div class="lg-item">
+              <span class="lg-key">Skimmer Fleet Req.</span>
+              <span class="lg-val" id="logistics-skimmer-fleet">—</span>
+            </div>
+            <div class="lg-item">
+              <span class="lg-key">Est. Fuel &amp; Cost</span>
+              <span class="lg-val font-mono" id="logistics-fuel-liters">—</span>
+            </div>
+          </div>
+          <div class="logistics-note" id="logistics-plan-note">
+            Autonomous interception trajectory plotted to minimize transit hours and oceanic dispersal.
+          </div>
+        </section>
+
+        <!-- ══════ Q7: Multilingual Maritime Audio Advisories ══════ -->
+        <section class="panel-card" id="q7-panel">
+          <div class="panel-head">
+            <h2 class="panel-title q7">📢 Multilingual Voice Advisories</h2>
+            <span class="panel-badge q7" id="voice-advisory-status">STANDBY</span>
+          </div>
+
+          <p class="audio-panel-desc">
+            Synthesized maritime voice advisories (gTTS) for coastal communities &amp; fishing vessels:
+          </p>
+
+          <div class="audio-players-stack">
+            <div class="audio-item">
+              <div class="audio-meta">
+                <span class="audio-lang-tag telugu">తెలుగు (Telugu)</span>
+                <span class="audio-desc">Coastal Fisher Community Advisory</span>
+              </div>
+              <audio id="teluguAudioPlayer" controls class="advisory-audio" preload="none"></audio>
+            </div>
+
+            <div class="audio-item">
+              <div class="audio-meta">
+                <span class="audio-lang-tag english">English</span>
+                <span class="audio-desc">International Maritime &amp; Coast Guard Dispatch</span>
+              </div>
+              <audio id="englishAudioPlayer" controls class="advisory-audio" preload="none"></audio>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══════ Q8: Live Coordinate Inspector & Drift Predictor ══════ -->
+        <section class="panel-card" id="q8-panel">
+          <div class="panel-head">
+            <h2 class="panel-title q8">🎯 Q8 · Coordinate Inspector</h2>
+            <span class="panel-badge q8" id="coord-status-badge">IDLE</span>
+          </div>
+
+          <p class="coord-panel-desc">Click the map or type custom Lat/Lon to fetch live ocean vectors and predict 72h drift.</p>
+
+          <div class="coord-input-row">
+            <div class="coord-field">
+              <label class="coord-label">Latitude</label>
+              <input id="coord-lat-input" type="number" step="0.0001" placeholder="e.g. 8.2177" class="coord-input" />
+            </div>
+            <div class="coord-field">
+              <label class="coord-label">Longitude</label>
+              <input id="coord-lon-input" type="number" step="0.0001" placeholder="e.g. 76.752" class="coord-input" />
+            </div>
+          </div>
+          <button id="coord-predict-btn" class="run-btn coord-run-btn" type="button">
+            <span class="run-icon">🌊</span> Predict 72h Drift
+          </button>
+          <p class="status-line" id="coord-status-line">Awaiting coordinates…</p>
+
+          <!-- Results grid -->
+          <div class="coord-results hidden" id="coord-results">
+            <div class="metric-grid">
+              <div class="mg-item">
+                <span class="mg-key">Nearest Harbor</span>
+                <span class="mg-val" id="coord-harbor">—</span>
+              </div>
+              <div class="mg-item">
+                <span class="mg-key">Coast Distance</span>
+                <span class="mg-val" id="coord-dist">—</span>
+              </div>
+              <div class="mg-item">
+                <span class="mg-key">Threat Level</span>
+                <span class="mg-val threat-val" id="coord-threat">—</span>
+              </div>
+              <div class="mg-item">
+                <span class="mg-key">Priority Score</span>
+                <span class="mg-val" id="coord-score">—</span>
+              </div>
+              <div class="mg-item">
+                <span class="mg-key">Drift Speed</span>
+                <span class="mg-val font-mono" id="coord-speed">—</span>
+              </div>
+              <div class="mg-item">
+                <span class="mg-key">Heading</span>
+                <span class="mg-val font-mono" id="coord-heading">—</span>
+              </div>
+              <div class="mg-item">
+                <span class="mg-key">Total Drift (72h)</span>
+                <span class="mg-val font-mono" id="coord-drift-km">—</span>
+              </div>
+              <div class="mg-item">
+                <span class="mg-key">Ocean Current</span>
+                <span class="mg-val font-mono" id="coord-current">—</span>
+              </div>
+            </div>
+
+            <!-- Advisory audio -->
+            <div class="coord-audio-row">
+              <span class="audio-lang-tag telugu">తెలుగు</span>
+              <audio id="coordTeluguAudio" controls class="advisory-audio coord-audio" preload="none"></audio>
+            </div>
+            <div class="coord-audio-row">
+              <span class="audio-lang-tag english">English</span>
+              <audio id="coordEnglishAudio" controls class="advisory-audio coord-audio" preload="none"></audio>
+            </div>
+          </div>
+        </section>
+
+      </aside><!-- /side-panel -->
+    </div><!-- /body-row -->
+  </div><!-- /shell -->
+
+  <!-- Toast Notification HUD -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="vendor/leaflet.js"></script>
+  <script src="js/dashboard.js"></script>
 </body>
 </html>

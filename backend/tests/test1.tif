@@ -1,0 +1,25 @@
+import numpy as np
+import rasterio
+from rasterio.transform import from_origin
+
+# ---------------------------------------------------------
+# TEST FILE 1: Minor Debris off Visakhapatnam (Bay of Bengal)
+# Location: 17.68° N, 83.30° E | 3-Band RGB | Small Debris Field
+# Expected Result: SAFE / MODERATE (Blue/Yellow Hotspot)
+# ---------------------------------------------------------
+width, height = 256, 256
+transform1 = from_origin(83.30, 17.68, 0.0001, 0.0001)
+
+# Synthetic ocean image (16-bit Sentinel-2 L2A style, DN values ~1200)
+rgb_data1 = np.full((3, height, width), 1200, dtype=np.uint16)
+# Insert a small plastic anomaly cluster in center
+rgb_data1[:, 120:135, 120:135] = 4500  
+
+with rasterio.open(
+    'test_minor_debris_vizag.tif', 'w',
+    driver='GTiff', height=height, width=width, count=3,
+    dtype=rgb_data1.dtype, crs='EPSG:4326', transform=transform1
+) as dst:
+    dst.write(rgb_data1)
+
+print("Created: test_minor_debris_vizag.tif (17.68° N, 83.30° E)")

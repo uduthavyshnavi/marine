@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 try:
@@ -96,6 +97,7 @@ class Settings:
                 "http://127.0.0.1:5500",
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
+                "null",
             ],
         )
     )
@@ -119,6 +121,31 @@ class Settings:
     yolo_model: str = field(default_factory=lambda: os.getenv("YOLO_MODEL", "yolov8n.pt"))
     detection_confidence_threshold: float = field(
         default_factory=lambda: _get_float("DETECTION_CONFIDENCE_THRESHOLD", 0.25)
+    )
+
+    # --- U-Net segmentation model (trained on MARIDA) ----------------------
+    unet_model_path: str = field(
+        default_factory=lambda: os.getenv(
+            "UNET_MODEL_PATH",
+            str(Path(__file__).resolve().parent.parent / "models" / "aquaflex_unet_final.pth"),
+        )
+    )
+    unet_config_path: str = field(
+        default_factory=lambda: os.getenv(
+            "UNET_CONFIG_PATH",
+            str(Path(__file__).resolve().parent.parent / "models" / "aquaflex_model_config.json"),
+        )
+    )
+    # Directory for generated live inference outputs (e.g. mask GeoTIFFs).
+    unet_output_dir: str = field(
+        default_factory=lambda: os.getenv(
+            "UNET_OUTPUT_DIR",
+            str(Path(__file__).resolve().parent.parent / "outputs"),
+        )
+    )
+    # Radius (km) for the live coastal-settlement proximity query.
+    coastal_query_radius_km: float = field(
+        default_factory=lambda: _get_float("COASTAL_QUERY_RADIUS_KM", 30.0)
     )
 
     forecast_horizon_hours: int = field(
