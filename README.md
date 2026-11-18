@@ -1,3 +1,4 @@
+
 # AquaFlex AI — Automated Marine Plastic Debris Detection & Predictive Drift Simulation
 
 > **Problem Statement 5:** AI/ML-Based Detection and Mapping of Floating Marine Plastic Debris — **MSC ELSA 3 Incident Case Study**.
@@ -338,3 +339,7 @@ Returns the complete pre-configured MSC ELSA 3 case-study dataset: initial AI de
     └── js/
         └── dashboard.js        # Leaflet map + countdown
 ```
+
+# marine
+AquaFlex AI: An intelligent marine debris detection and ocean plastic tracking platform developed for VJ Hackathon 2k26 to monitor and map coastal litter using advanced data processing and GIS visualization.
+
